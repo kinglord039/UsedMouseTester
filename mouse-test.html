@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mouse Health Check — Viper V2 Pro</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;700;800&display=swap');
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #0a0a0f;
+    --surface: #12121a;
+    --border: #222233;
+    --accent: #00e5ff;
+    --warn: #ff4560;
+    --ok: #00e096;
+    --text: #e0e0f0;
+    --muted: #5a5a7a;
+  }
+
+  body { background: var(--bg); color: var(--text); font-family: 'Syne', sans-serif; min-height: 100vh; padding: 24px; }
+
+  h1 { font-size: 1.5rem; font-weight: 800; letter-spacing: -0.02em; color: var(--accent); margin-bottom: 3px; }
+  .subtitle { font-family: 'Space Mono', monospace; font-size: 0.7rem; color: var(--muted); margin-bottom: 22px; letter-spacing: 0.05em; }
+
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(290px, 1fr)); gap: 14px; }
+
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 18px; position: relative; overflow: hidden; }
+  .card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px; background: var(--accent); opacity: 0.25; }
+
+  .card-title { font-size: 0.75rem; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); margin-bottom: 5px; }
+  .card-desc  { font-size: 0.78rem; color: var(--muted); margin-bottom: 12px; line-height: 1.5; font-family: 'Space Mono', monospace; }
+
+  .status { display: inline-flex; align-items: center; gap: 6px; font-family: 'Space Mono', monospace; font-size: 0.72rem; padding: 3px 9px; border-radius: 20px; margin-bottom: 12px; background: rgba(255,255,255,0.04); border: 1px solid var(--border); }
+  .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--muted); transition: background 0.2s; }
+  .status.ok   .dot { background: var(--ok); }
+  .status.warn .dot { background: var(--warn); animation: pulse 0.4s ease 3; }
+  @keyframes pulse { 0%,100%{transform:scale(1)} 50%{transform:scale(1.8)} }
+
+  .log { font-family: 'Space Mono', monospace; font-size: 0.7rem; background: rgba(0,0,0,0.3); border: 1px solid var(--border); border-radius: 8px; padding: 9px; min-height: 58px; max-height: 120px; overflow-y: auto; color: var(--text); line-height: 1.6; }
+  .log .ok-line   { color: var(--ok); }
+  .log .warn-line { color: var(--warn); font-weight: bold; }
+  .log .info-line { color: var(--accent); }
+
+  .click-target { width: 100%; height: 64px; border-radius: 8px; border: 2px dashed var(--border); display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 0.85rem; color: var(--muted); margin-bottom: 11px; transition: border-color 0.15s, color 0.15s; user-select: none; cursor: pointer; }
+  .click-target:hover { border-color: var(--accent); color: var(--accent); }
+
+  #drag-area { width: 100%; height: 105px; border-radius: 8px; border: 1px solid var(--border); position: relative; overflow: hidden; cursor: crosshair; margin-bottom: 11px; background: rgba(0,0,0,0.2); }
+  #drag-ball { width: 30px; height: 30px; border-radius: 50%; background: var(--accent); position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%); pointer-events: none; transition: box-shadow 0.1s; box-shadow: 0 0 0 0 rgba(0,229,255,0); }
+  #drag-ball.active { box-shadow: 0 0 12px 4px rgba(0,229,255,0.4); }
+  #drag-trail { position: absolute; inset: 0; }
+
+  #scroll-outer { width: 100%; height: 105px; border-radius: 8px; border: 1px solid var(--border); overflow-y: scroll; margin-bottom: 11px; background: rgba(0,0,0,0.2); }
+  #scroll-inner { padding: 9px 13px; font-family: 'Space Mono', monospace; font-size: 0.7rem; color: var(--muted); line-height: 1.8; }
+  .scroll-line { transition: color 0.1s; }
+  .scroll-line.active { color: var(--accent); }
+
+  .side-btn-row { display: flex; gap: 10px; margin-bottom: 11px; }
+  .side-btn-box { flex: 1; height: 64px; border-radius: 8px; border: 2px dashed var(--border); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; user-select: none; transition: border-color 0.2s, background 0.2s; }
+  .side-btn-box .lbl  { font-size: 0.7rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
+  .side-btn-box .hint { font-family: 'Space Mono', monospace; font-size: 0.62rem; color: var(--muted); }
+  .side-btn-box.pressed { border-color: var(--accent); background: rgba(0,229,255,0.07); }
+  .side-btn-box.pressed .lbl { color: var(--accent); }
+
+  .btn { font-family: 'Syne', sans-serif; font-weight: 700; font-size: 0.72rem; letter-spacing: 0.08em; text-transform: uppercase; padding: 6px 14px; border-radius: 6px; border: 1px solid var(--border); background: rgba(255,255,255,0.04); color: var(--muted); cursor: pointer; transition: all 0.15s; }
+  .btn:hover { background: rgba(0,229,255,0.1); color: var(--accent); border-color: var(--accent); }
+
+  .dpi-note { margin-top: 14px; padding: 14px 16px; border-radius: 10px; border: 1px dashed var(--border); font-family: 'Space Mono', monospace; font-size: 0.72rem; color: var(--muted); line-height: 1.6; }
+  .dpi-note strong { color: var(--text); }
+
+  #summary { margin-top: 18px; padding: 15px 18px; border-radius: 12px; border: 1px solid var(--border); background: var(--surface); font-family: 'Space Mono', monospace; font-size: 0.78rem; display: none; }
+  #summary.show { display: block; }
+  #summary h2 { font-family: 'Syne', sans-serif; font-size: 0.95rem; margin-bottom: 10px; color: var(--accent); }
+  .sum-row { display: flex; justify-content: space-between; padding: 4px 0; border-bottom: 1px solid var(--border); }
+  .sum-row:last-child { border: none; }
+  .pass { color: var(--ok); }
+  .fail { color: var(--warn); }
+</style>
+</head>
+<body>
+
+<h1>Mouse Health Check</h1>
+<p class="subtitle">VIPER V2 PRO · FULL BUTTON VERIFICATION · SELLER: SCREEN RECORD THIS PAGE</p>
+
+<div class="grid">
+
+  <div class="card">
+    <div class="card-title">Test 1 — Left Click · Double-click</div>
+    <div class="card-desc">Single-click 10× slowly (~1 per sec).<br>Extra ghost click = defect.</div>
+    <div id="dc-status" class="status"><span class="dot"></span><span id="dc-label">Waiting…</span></div>
+    <div id="dc-target" class="click-target">LEFT CLICK HERE</div>
+    <div class="log" id="dc-log"><span class="info-line">// waiting…</span></div>
+    <button class="btn" onclick="resetDC()" style="margin-top:9px">Reset</button>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Test 2 — Left Click · Drag</div>
+    <div class="card-desc">Hold left button, drag dot around 5×.<br>Dot drops mid-drag = defect.</div>
+    <div id="drag-status" class="status"><span class="dot"></span><span id="drag-label">Waiting…</span></div>
+    <div id="drag-area">
+      <canvas id="drag-trail"></canvas>
+      <div id="drag-ball"></div>
+    </div>
+    <div class="log" id="drag-log"><span class="info-line">// hold & drag the circle…</span></div>
+    <button class="btn" onclick="resetDrag()" style="margin-top:9px">Reset</button>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Test 3 — Scroll Wheel · Jitter</div>
+    <div class="card-desc">Scroll slowly down then back up.<br>Unwanted direction flip = defect.</div>
+    <div id="scroll-status" class="status"><span class="dot"></span><span id="scroll-label">Waiting…</span></div>
+    <div id="scroll-outer"><div id="scroll-inner"></div></div>
+    <div class="log" id="scroll-log"><span class="info-line">// scroll inside the box…</span></div>
+    <button class="btn" onclick="resetScroll()" style="margin-top:9px">Reset</button>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Test 4 — Right Click · Double-click</div>
+    <div class="card-desc">Right-click 10× slowly (~1 per sec).<br>Extra ghost click = defect.</div>
+    <div id="rc-status" class="status"><span class="dot"></span><span id="rc-label">Waiting…</span></div>
+    <div id="rc-target" class="click-target">RIGHT CLICK HERE</div>
+    <div class="log" id="rc-log"><span class="info-line">// waiting…</span></div>
+    <button class="btn" onclick="resetRC()" style="margin-top:9px">Reset</button>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Test 5 — Middle Click · Double-click</div>
+    <div class="card-desc">Press scroll wheel 10× slowly (~1 per sec).<br>Extra ghost click = defect.</div>
+    <div id="mc-status" class="status"><span class="dot"></span><span id="mc-label">Waiting…</span></div>
+    <div id="mc-target" class="click-target">MIDDLE CLICK HERE</div>
+    <div class="log" id="mc-log"><span class="info-line">// waiting…</span></div>
+    <button class="btn" onclick="resetMC()" style="margin-top:9px">Reset</button>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Test 6 — Side Thumb Buttons</div>
+    <div class="card-desc">Press each side button 5× slowly.<br>No light-up response = not registering.</div>
+    <div id="side-status" class="status"><span class="dot"></span><span id="side-label">Waiting…</span></div>
+    <div class="side-btn-row">
+      <div class="side-btn-box" id="sb1-box">
+        <span class="lbl">Button 4</span>
+        <span class="hint">lower thumb (Back)</span>
+        <span class="hint" id="sb1-count">0 presses</span>
+      </div>
+      <div class="side-btn-box" id="sb2-box">
+        <span class="lbl">Button 5</span>
+        <span class="hint">upper thumb (Fwd)</span>
+        <span class="hint" id="sb2-count">0 presses</span>
+      </div>
+    </div>
+    <div class="log" id="side-log"><span class="info-line">// press each thumb button…</span></div>
+    <button class="btn" onclick="resetSide()" style="margin-top:9px">Reset</button>
+  </div>
+
+</div>
+
+<div class="dpi-note">
+  <strong>DPI Button</strong> — Browsers cannot detect the DPI cycle button (it's handled by the Razer driver, not sent as a mouse event). Ask the seller to open <strong>Razer Synapse</strong> and show the DPI indicator changing on screen while pressing the DPI button, in the same recording.
+</div>
+
+<div id="summary">
+  <h2>Results Summary</h2>
+  <div class="sum-row"><span>Left Click — double</span><span id="s-dc">—</span></div>
+  <div class="sum-row"><span>Left Click — drag</span><span id="s-drag">—</span></div>
+  <div class="sum-row"><span>Scroll Wheel</span><span id="s-scroll">—</span></div>
+  <div class="sum-row"><span>Right Click — double</span><span id="s-rc">—</span></div>
+  <div class="sum-row"><span>Middle Click — double</span><span id="s-mc">—</span></div>
+  <div class="sum-row"><span>Side Buttons</span><span id="s-side">—</span></div>
+</div>
+
+<script>
+document.addEventListener('contextmenu', e => e.preventDefault());
+document.addEventListener('mousedown',   e => { if (e.button === 1) e.preventDefault(); });
+
+// ── HELPERS ──────────────────────────────────────────────────
+function appendLog(el, msg, cls) {
+  const d = document.createElement('div');
+  d.className = cls; d.textContent = msg;
+  el.appendChild(d); el.scrollTop = el.scrollHeight;
+  while (el.children.length > 40) el.removeChild(el.firstChild);
+}
+function setStatus(sEl, lEl, type, text) { sEl.className = 'status ' + type; lEl.textContent = text; }
+
+const summaryState = { dc: null, drag: null, scroll: null, rc: null, mc: null, side: null };
+function updateSummary(key, val) {
+  summaryState[key] = val;
+  const fmt = v => v === null ? '<span style="color:var(--muted)">Not tested</span>'
+    : v ? '<span class="pass">PASS</span>' : '<span class="fail">FAIL</span>';
+  ['dc','drag','scroll','rc','mc','side'].forEach(k => {
+    document.getElementById('s-' + k).innerHTML = fmt(summaryState[k]);
+  });
+  document.getElementById('summary').classList.toggle('show', Object.values(summaryState).some(v => v !== null));
+}
+
+// ── GENERIC DOUBLE-CLICK TEST ────────────────────────────────
+function makeClickTest(targetId, logId, statusId, labelId, btn, key) {
+  const target = document.getElementById(targetId);
+  const log    = document.getElementById(logId);
+  const status = document.getElementById(statusId);
+  const label  = document.getElementById(labelId);
+  let clicks = [], doubles = 0, total = 0;
+
+  target.addEventListener('mousedown', e => {
+    if (e.button !== btn) return;
+    e.preventDefault();
+    const now = Date.now(), prev = clicks[clicks.length - 1];
+    const gap = prev ? now - prev : 999;
+    clicks.push(now); total++;
+    if (gap < 180) {
+      doubles++;
+      appendLog(log, `⚠ Click #${total} — ${gap}ms — DOUBLE CLICK DETECTED`, 'warn-line');
+      setStatus(status, label, 'warn', `${doubles} double click(s)!`);
+      updateSummary(key, false);
+    } else {
+      appendLog(log, `✓ Click #${total} — ${gap}ms — OK`, 'ok-line');
+      if (doubles === 0) { setStatus(status, label, 'ok', `${total} click(s) — clean`); updateSummary(key, true); }
+    }
+  });
+
+  return () => {
+    clicks = []; doubles = 0; total = 0;
+    log.innerHTML = '<span class="info-line">// reset…</span>';
+    setStatus(status, label, '', 'Waiting…'); updateSummary(key, null);
+  };
+}
+
+const resetDC = makeClickTest('dc-target','dc-log','dc-status','dc-label', 0, 'dc');
+const resetRC = makeClickTest('rc-target','rc-log','rc-status','rc-label', 2, 'rc');
+const resetMC = makeClickTest('mc-target','mc-log','mc-status','mc-label', 1, 'mc');
+
+// ── DRAG ─────────────────────────────────────────────────────
+const dragArea   = document.getElementById('drag-area');
+const dragBall   = document.getElementById('drag-ball');
+const dragCanvas = document.getElementById('drag-trail');
+const dragLog    = document.getElementById('drag-log');
+const dragSt     = document.getElementById('drag-status');
+const dragLb     = document.getElementById('drag-label');
+const ctx        = dragCanvas.getContext('2d');
+let isDragging = false, dragDrops = 0, dragSessions = 0, lastPos = null;
+
+function resizeCanvas() { dragCanvas.width = dragArea.clientWidth; dragCanvas.height = dragArea.clientHeight; }
+resizeCanvas(); window.addEventListener('resize', resizeCanvas);
+
+dragArea.addEventListener('mousedown', e => {
+  if (e.button !== 0) return;
+  isDragging = true; dragSessions++;
+  dragBall.classList.add('active');
+  const r = dragArea.getBoundingClientRect();
+  lastPos = { x: e.clientX - r.left, y: e.clientY - r.top };
+  moveBall(lastPos.x, lastPos.y);
+  ctx.beginPath(); ctx.moveTo(lastPos.x, lastPos.y);
+  appendLog(dragLog, `▶ Drag #${dragSessions} started`, 'info-line');
+});
+window.addEventListener('mousemove', e => {
+  if (!isDragging) return;
+  if (e.buttons === 0) { ghostRelease(); return; }
+  const r = dragArea.getBoundingClientRect();
+  const x = e.clientX - r.left, y = e.clientY - r.top;
+  moveBall(x, y);
+  ctx.lineTo(x, y); ctx.strokeStyle = 'rgba(0,229,255,0.4)'; ctx.lineWidth = 2; ctx.stroke();
+  lastPos = { x, y };
+});
+window.addEventListener('mouseup', e => {
+  if (!isDragging || e.button !== 0) return;
+  isDragging = false; dragBall.classList.remove('active');
+  appendLog(dragLog, `■ Drag #${dragSessions} ended — OK`, 'ok-line');
+  if (dragDrops === 0) { setStatus(dragSt, dragLb, 'ok', `${dragSessions} drag(s) — clean`); updateSummary('drag', true); }
+});
+function ghostRelease() {
+  dragDrops++; isDragging = false; dragBall.classList.remove('active');
+  appendLog(dragLog, `⚠ Drag #${dragSessions} — GHOST RELEASE!`, 'warn-line');
+  setStatus(dragSt, dragLb, 'warn', `${dragDrops} drop(s)!`);
+  updateSummary('drag', false);
+}
+function moveBall(x, y) { dragBall.style.left = x + 'px'; dragBall.style.top = y + 'px'; dragBall.style.transform = 'translate(-50%,-50%)'; }
+function resetDrag() {
+  isDragging = false; dragDrops = 0; dragSessions = 0; lastPos = null;
+  ctx.clearRect(0, 0, dragCanvas.width, dragCanvas.height);
+  dragBall.style.left = '50%'; dragBall.style.top = '50%'; dragBall.style.transform = 'translate(-50%,-50%)';
+  dragBall.classList.remove('active');
+  dragLog.innerHTML = '<span class="info-line">// reset…</span>';
+  setStatus(dragSt, dragLb, '', 'Waiting…'); updateSummary('drag', null);
+}
+
+// ── SCROLL ────────────────────────────────────────────────────
+const scrollOuter = document.getElementById('scroll-outer');
+const scrollInner = document.getElementById('scroll-inner');
+const scrollLog   = document.getElementById('scroll-log');
+const scrollSt    = document.getElementById('scroll-status');
+const scrollLb    = document.getElementById('scroll-label');
+
+scrollInner.innerHTML = Array.from({length:30},(_,i)=>`<div class="scroll-line" id="sl-${i+1}">Line ${String(i+1).padStart(2,'0')} ─────────────────</div>`).join('');
+
+let lastST = 0, scrollDir = null, scrollJitters = 0, scrollEvents = 0;
+scrollOuter.addEventListener('scroll', () => {
+  const st = scrollOuter.scrollTop, delta = st - lastST;
+  if (!delta) return;
+  const dir = delta > 0 ? 'down' : 'up'; scrollEvents++;
+  const active = Math.min(30, Math.max(1, Math.floor(st / (scrollInner.scrollHeight / 30)) + 1));
+  document.querySelectorAll('.scroll-line').forEach(e => e.classList.remove('active'));
+  const el = document.getElementById('sl-' + active); if (el) el.classList.add('active');
+  if (scrollDir && dir !== scrollDir && Math.abs(delta) <= 3) {
+    scrollJitters++;
+    appendLog(scrollLog, `⚠ Jitter at ${Math.round(st)}px (${delta>0?'+':''}${delta}px) — SKIP`, 'warn-line');
+    setStatus(scrollSt, scrollLb, 'warn', `${scrollJitters} jitter(s)!`); updateSummary('scroll', false);
+  } else if (scrollEvents % 4 === 0) {
+    appendLog(scrollLog, `→ ${dir} · ${Math.round(st)}px`, 'ok-line');
+    if (scrollJitters === 0) { setStatus(scrollSt, scrollLb, 'ok', 'Clean so far'); updateSummary('scroll', true); }
+  }
+  scrollDir = dir; lastST = st;
+});
+function resetScroll() {
+  scrollOuter.scrollTop = 0; lastST = 0; scrollDir = null; scrollJitters = 0; scrollEvents = 0;
+  document.querySelectorAll('.scroll-line').forEach(e => e.classList.remove('active'));
+  scrollLog.innerHTML = '<span class="info-line">// reset…</span>';
+  setStatus(scrollSt, scrollLb, '', 'Waiting…'); updateSummary('scroll', null);
+}
+
+// ── SIDE BUTTONS ──────────────────────────────────────────────
+const sideSt   = document.getElementById('side-status');
+const sideLb   = document.getElementById('side-label');
+const sideLog  = document.getElementById('side-log');
+const sb1Box   = document.getElementById('sb1-box');
+const sb2Box   = document.getElementById('sb2-box');
+const sb1Count = document.getElementById('sb1-count');
+const sb2Count = document.getElementById('sb2-count');
+let sideCounts = {3:0, 4:0};
+
+window.addEventListener('mousedown', e => {
+  if (e.button !== 3 && e.button !== 4) return;
+  e.preventDefault();
+  sideCounts[e.button]++;
+  const n = sideCounts[e.button];
+  const box   = e.button === 3 ? sb1Box   : sb2Box;
+  const cntEl = e.button === 3 ? sb1Count : sb2Count;
+  const name  = e.button === 3 ? 'Button 4 (Back)' : 'Button 5 (Fwd)';
+  cntEl.textContent = `${n} press${n!==1?'es':''}`;
+  box.classList.add('pressed'); setTimeout(() => box.classList.remove('pressed'), 200);
+  appendLog(sideLog, `✓ ${name} — press #${n}`, 'ok-line');
+  setStatus(sideSt, sideLb, 'ok', `B4:${sideCounts[3]}  B5:${sideCounts[4]}`);
+  updateSummary('side', true);
+});
+window.addEventListener('mouseup', e => { if (e.button === 3 || e.button === 4) e.preventDefault(); });
+
+function resetSide() {
+  sideCounts = {3:0, 4:0};
+  sb1Count.textContent = '0 presses'; sb2Count.textContent = '0 presses';
+  sb1Box.classList.remove('pressed'); sb2Box.classList.remove('pressed');
+  sideLog.innerHTML = '<span class="info-line">// reset…</span>';
+  setStatus(sideSt, sideLb, '', 'Waiting…'); updateSummary('side', null);
+}
+</script>
+</body>
+</html>
